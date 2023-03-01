@@ -7,18 +7,18 @@
 #include <I2C/I2C.h>
 static void* InterI2C[4];
 I2C::I2C(uint8_t NI2C,PinDescrip *SDA,PinDescrip *SCL,bool TestMode) {
-//-->	Habilito	<--
-	SYSCON->FCLKSEL[I2C_CLKSEL+NI2C]=I2C_MainClock;
+	//-->	Habilito	<--
+
 	SYSCON->SYSAHBCLKCTRL0|=(0x1<<7);	//-->	SWM	<--
 	SYSCON->SYSAHBCLKCTRL0|=(0x1<<((NI2C==I2C_0)?5:21+NI2C));
+	SYSCON->FCLKSEL[I2C_CLKSEL+NI2C]=I2C_MainClock;
 	SYSCON->FCLKSEL[5] = 0x01;					//SELECT I2C0 CLOCK (MAIN = 0x01)
-	//-->	Falta Linea Reset	<--
-	//ResetI
-	//ResetII
 	//-->	Asigno Pines	<--
 switch(NI2C){
 
 case I2C_0:
+	SYSCON->PRESETCTRL0&=~(0x1<<5);
+	SYSCON->PRESETCTRL0|=(0x1<<5);
 	SWM0->PINENABLE0&=~(0x3<<12);
 	I2C0->CLKDIV = 11;							//I2C CLOCK DIVIDER  (original 11) PK
 	I2C0->MSTTIME = (0x01<<0) | (0x00<<4);		//SLCLOW | SCLHIGH
@@ -32,6 +32,9 @@ case I2C_0:
 	break;
 
 case I2C_1:
+	SYSCON->PRESETCTRL0&=~(0x1<<21);
+	SYSCON->PRESETCTRL0|=(0x1<<21);
+
 	SWM0->PINASSIGN.PINASSIGN9&=~(0xFFFF<<16);	//-->	Limpio los bits de mi registro	<--
 	SWM0->PINASSIGN.PINASSIGN9|=(SDA->PinRegist()<<16)|(SCL->PinRegist()<<24);	//-->	Asi los escribo sin pisar los demas bits	<--
 	//I2C1->CLKDIV=0x1;	//-->	Divisor por 2	<--
@@ -45,6 +48,9 @@ case I2C_1:
 	break;
 
 case I2C_2:
+	SYSCON->PRESETCTRL0&=~(0x1<<22);
+	SYSCON->PRESETCTRL0|=(0x1<<22);
+
 	SWM0->PINASSIGN.PINASSIGN10&=~(0xFFFF);	//-->	Limpio los bits de mi registro	<--
 	SWM0->PINASSIGN.PINASSIGN10|=(SDA->PinRegist())|(SCL->PinRegist()<<8);	//-->	Asi los escribo sin pisar los demas bits	<--
 	//I2C2->CLKDIV=0x1;	//-->	Divisor por 2	<--
@@ -59,6 +65,9 @@ case I2C_2:
 	break;
 
 case I2C_3:
+	SYSCON->PRESETCTRL0&=~(0x1<<23);
+	SYSCON->PRESETCTRL0|=(0x1<<23);
+
 	SWM0->PINASSIGN.PINASSIGN10&=~(0xFFFF<<16);	//-->	Limpio los bits de mi registro	<--
 	SWM0->PINASSIGN.PINASSIGN10|=(SDA->PinRegist()<<16)|(SCL->PinRegist()<<24);	//-->	Asi los escribo sin pisar los demas bits	<--
 	I2C3->CLKDIV = 11;							//I2C CLOCK DIVIDER  (original 11) PK
@@ -133,7 +142,15 @@ if(I2C_Pendiente(Base->STAT)){
 }
 
 int8_t I2C::I2C0_MasterReadBlocking(uint8_t address, uint8_t regAddr,uint8_t *data, uint8_t size) {
-return 0;
+	//-->	Desactivar interrupcion	<--
+
+	Base->MSTDAT=(address|(Lectura<<0x8));
+	Base->MSTCTL|=(0x1<<1);	//-->	Inicio la transmicion	<--
+	while((Base->STAT&(0x1<<1)>>1)!=0x1);
+	*data=(Base->MSTDAT&(0xFF));
+	I2C_Stop(Base->MSTCTL)
+
+	return 0;
 
 }
 
@@ -345,4 +362,3 @@ void I2C3_IRQHandler(){
 		((I2C*)InterI2C[3])->I2C_IRQHandler();
 		}
 }
-
